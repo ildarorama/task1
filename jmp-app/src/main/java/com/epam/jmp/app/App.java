@@ -2,11 +2,13 @@ package com.epam.jmp.app;
 
 import com.epam.jmp.bank.Bank;
 import com.epam.jmp.dto.BankCardType;
+import com.epam.jmp.dto.Subscription;
 import com.epam.jmp.dto.User;
 import com.epam.jmp.service.Service;
 
 import java.time.LocalDate;
 import java.util.ServiceLoader;
+import java.util.function.Predicate;
 
 public class App {
 
@@ -14,28 +16,37 @@ public class App {
 
         var service = ServiceLoader.load(Service.class).findFirst().orElseThrow(AppException::new);
 
-        var bank = ServiceLoader.load(Bank.class).findFirst().orElseThrow(AppException::new);
+        var cardService = ServiceLoader.load(Bank.class).findFirst().orElseThrow(AppException::new);
 
-        var users = service.getAllUsers();
+        var user = new User("User name", "User surname", LocalDate.now().minusYears(20));
 
-        var user = new User("John", "Doe", LocalDate.of(2002, 01, 20));
+        var card = cardService.createBankCard(user, BankCardType.CREDIT);
 
-        var card = bank.createBankCard(user, BankCardType.CREDIT);
+        var userYoung = new User("Young user name", "Young user surname", LocalDate.now().minusYears(15));
+
+        var cardYoung = cardService.createBankCard(userYoung, BankCardType.CREDIT);
 
         service.subscribe(card);
+        service.subscribe(cardYoung);
 
-        var foundSubscriptionOp = service.getSubscriptionByBankCardNumber(card.getNumber());
+        Predicate<Subscription> filter = s -> s.getBankcard().equals(card.getNumber());
 
-        assert foundSubscriptionOp.isPresent();
+        var foundCards = service.getAllSubscriptionsByCondition(filter);
+        System.out.println("Found cards: " + foundCards.size());
 
-        var foundSubscription = foundSubscriptionOp.orElseThrow(SubscriptionNotFoundException::new);
+        var cardByNumber = service.getSubscriptionByBankCardNumber(card.getNumber())
+                .orElseThrow(SubscriptionNotFoundException::new);
+        System.out.println("Found cards with number: " + cardByNumber.getBankcard());
 
-        assert foundSubscription.getBankcard().equals(card.getNumber());
+        System.out.println("Average user age " + service.getAverageUsersAge());
 
-        var listOfSubscription = service.getAllSubscriptionsByCondition(e -> e.getBankcard().equals(card.getNumber()));
 
-        System.out.println("Found subscriptions: " + listOfSubscription.size());
-        System.out.println("Avg age: " + service.getAverageUsersAge());
-        System.out.println("User count: " + users.size());
+        for (User u : service.getAllUsers()) {
+            System.out.print("User " + u.getName() + " is: ");
+            System.out.println(Service.isPayableUser(u) ? "payable" : "non-payable");
+        }
+
+        System.out.println("All cards:");
+        service.getAllUsers().stream().map(User::getName).forEach(System.out::println);
     }
 }
